@@ -23,6 +23,11 @@ export interface MailgunEvents {
     recipient: string
     severity?: string
     reason?: string
+    "delivery-status"?: {
+        code: number
+        message: string
+        "enhanced-code"?: string
+    }
     message: {
         headers: {
             "message-id": string

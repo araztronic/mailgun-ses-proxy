@@ -143,10 +143,16 @@ type MailgunEventPayload = Prisma.NewsletterNotificationsGetPayload<{
     include: { newsletter: { include: { newsletterBatch: true } } }
 }>
 
+/** Events stored before raw SNS delivery was enabled are still wrapped in the SNS envelope. */
+function unwrapSnsEvent(rawEvent: string) {
+    const parsed = JSON.parse(rawEvent)
+    return parsed.Type === "Notification" ? JSON.parse(parsed.Message) : parsed
+}
+
 export function formatAsMailgunEvent(event: MailgunEventPayload[], url: string) {
     const format = (event: MailgunEventPayload) => {
         const eventTimestamp = (event.timestamp || event.created).getTime()
-        const originalSESEvent = JSON.parse(event.rawEvent)
+        const originalSESEvent = unwrapSnsEvent(event.rawEvent)
         const out = {
             event: event.type,
             id: `${event.id}-${event.messageId}`,
@@ -161,8 +167,18 @@ export function formatAsMailgunEvent(event: MailgunEventPayload[], url: string) 
         } as MailgunEvents
 
         if (originalSESEvent.eventType == "Bounce") {
-            out["severity"] = "permanent"
+            const bounce = originalSESEvent.bounce ?? {}
+            const transient = bounce.bounceType === "Transient"
+            const recipient = bounce.bouncedRecipients?.[0] ?? {}
+            const diagnostic: string | undefined = recipient.diagnosticCode
+            out["severity"] = transient ? "temporary" : "permanent"
             out["reason"] = "suppress-bounce"
+            // Ghost only records a failure (and suppresses the address) when the event carries delivery-status
+            out["delivery-status"] = {
+                code: Number(diagnostic?.match(/\b([245]\d\d)\b/)?.[1] ?? (transient ? 450 : 550)),
+                message: diagnostic || `SES ${bounce.bounceType ?? "Permanent"} bounce (${bounce.bounceSubType ?? "General"})`,
+                "enhanced-code": recipient.status,
+            }
         }
 
         return out
