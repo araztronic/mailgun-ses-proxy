@@ -19,13 +19,13 @@ describe("formatAsMailgunEvent bounces", () => {
     it("emits permanent severity and delivery-status Ghost needs to suppress", () => {
         const [e] = formatAsMailgunEvent([payload(bounce("Permanent"))], "next").items as any[]
         expect(e.severity).toBe("permanent")
-        expect(e["delivery-status"]).toEqual({ code: 550, message: "smtp; 550 5.1.1 user unknown", "enhanced-code": "5.1.1" })
+        expect(e["delivery-status"]).toEqual({ code: 605, message: "smtp; 550 5.1.1 user unknown", "enhanced-code": "5.1.1" })
     })
 
     it("still works when the stored event is wrapped in an SNS envelope", () => {
         const [e] = formatAsMailgunEvent([payload(bounce("Permanent"), true)], "next").items as any[]
         expect(e.severity).toBe("permanent")
-        expect(e["delivery-status"].code).toBe(550)
+        expect(e["delivery-status"].code).toBe(605)
     })
 
     it("marks transient bounces temporary and falls back when no diagnostic code", () => {

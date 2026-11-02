@@ -175,7 +175,9 @@ export function formatAsMailgunEvent(event: MailgunEventPayload[], url: string) 
             out["reason"] = "suppress-bounce"
             // Ghost only records a failure (and suppresses the address) when the event carries delivery-status
             out["delivery-status"] = {
-                code: Number(diagnostic?.match(/\b([245]\d\d)\b/)?.[1] ?? (transient ? 450 : 550)),
+                // 605 = Mailgun's "address already on the bounce list": Ghost suppresses on it at once, instead of
+                // after three repeat failures. Right for SES hard bounces; transient ones keep the SMTP code.
+                code: transient ? Number(diagnostic?.match(/\b(4\d\d)\b/)?.[1] ?? 450) : 605,
                 message: diagnostic || `SES ${bounce.bounceType ?? "Permanent"} bounce (${bounce.bounceSubType ?? "General"})`,
                 "enhanced-code": recipient.status,
             }
